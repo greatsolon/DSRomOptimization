@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5A0C2B291820E5E300C64E0D /* libIOKit.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5A0C2B281820E5E300C64E0D /* libIOKit.dylib */; };
 		5A0C2B2D18211F0D00C64E0D /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 5A0C2B2C18211F0D00C64E0D /* AppIcon.icns */; };
 		5A1FECA7181F659D00F35F21 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5A1FECA6181F659D00F35F21 /* Cocoa.framework */; };
 		5A1FECB1181F659D00F35F21 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 5A1FECAF181F659D00F35F21 /* InfoPlist.strings */; };
@@ -33,7 +32,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		5A0C2B281820E5E300C64E0D /* libIOKit.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libIOKit.dylib; path = usr/lib/libIOKit.dylib; sourceTree = SDKROOT; };
 		5A0C2B2C18211F0D00C64E0D /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		5A1FECA3181F659D00F35F21 /* DSRomOptimizationCut.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DSRomOptimizationCut.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A1FECA6181F659D00F35F21 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
@@ -62,7 +60,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5A0C2B291820E5E300C64E0D /* libIOKit.dylib in Frameworks */,
 				5A1FECA7181F659D00F35F21 /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -101,7 +98,6 @@
 		5A1FECA5181F659D00F35F21 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				5A0C2B281820E5E300C64E0D /* libIOKit.dylib */,
 				5A1FECA6181F659D00F35F21 /* Cocoa.framework */,
 				5A1FECC5181F659E00F35F21 /* XCTest.framework */,
 				5A1FECA8181F659D00F35F21 /* Other Frameworks */,

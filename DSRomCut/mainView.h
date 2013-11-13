@@ -19,6 +19,8 @@
 	NSProgressIndicator*		m_singleProgress;
 	NSTextField*				m_singleBarText;
 	
+	NSTextView*					m_logBox;
+	
 	long long					m_fileSize;
 	
 	NSMutableArray*				m_fileList;
@@ -30,6 +32,7 @@
 @property (nonatomic, assign) IBOutlet NSTextField* singleLabel;
 @property (nonatomic, assign) IBOutlet NSProgressIndicator* singleProgress;
 @property (nonatomic, assign) IBOutlet NSTextField* singleBarText;
+@property (nonatomic, assign) IBOutlet NSTextView* logBox;
 
 @property (nonatomic, retain) NSMutableArray* fileList;
 
@@ -41,7 +44,11 @@
 - (void)analyzeSize:(NSNotification*)notification;
 - (void)setWriteSize:(NSNotification*)notification;
 - (void)allDone:(NSNotification*)notification;
+- (void)setLog:(NSNotification*)notification;
 
 - (void)optimizationFile:(NSString*)filePath;
+
+- (void)addLogString:(NSString*)string;
+- (void)cleanLog;
 
 @end

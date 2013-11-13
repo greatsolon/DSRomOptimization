@@ -16,6 +16,7 @@
 @synthesize singleLabel = m_singleLabel;
 @synthesize singleProgress = m_singleProgress;
 @synthesize singleBarText = m_singleBarText;
+@synthesize logBox = m_logBox;
 @synthesize fileList = m_fileList;
 
 #define BLOCKSIZE 1000000
@@ -49,7 +50,7 @@
 #ifdef DEBUG
 	NSLog(@"Clicked single button.");
 #endif
-	NSOpenPanel *oPanel = [[NSOpenPanel alloc] init];
+	NSOpenPanel *oPanel = [NSOpenPanel openPanel];
 	[oPanel setCanChooseDirectories:YES];
 	[oPanel setCanChooseFiles:YES];
 	[oPanel setAllowsMultipleSelection:YES];
@@ -65,24 +66,30 @@
 			}
 		}
 	}
-	[oPanel release];
 }
 
 - (IBAction)optimizationFiles:(id)sender
 {
+	// Clean all log
+	[self cleanLog];
+	// Configration logbox
+	[m_logBox setTextColor:[NSColor greenColor]];
 	// Remove all notification
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationSetFileSize" object:nil];
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAnalyzeSize" object:nil];
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationWriteSize" object:nil];
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAllDone" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationSetFileSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAnalyzeSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationWriteSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAllDone" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAddLog" object:nil];
 	// Regiese a notification to set original file size
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setFileSize:) name:@"kNotificationSetFileSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] addObserver:self selector:@selector(setFileSize:) name:@"kNotificationSetFileSize" object:nil];
 	// Regiest a notification to set analyzed file size.
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(analyzeSize:) name:@"kNotificationAnalyzeSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] addObserver:self selector:@selector(analyzeSize:) name:@"kNotificationAnalyzeSize" object:nil];
 	// Regiest a notification to set file write size.
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setWriteSize:) name:@"kNotificationWriteSize" object:Nil];
+	[[NSDistributedNotificationCenter defaultCenter] addObserver:self selector:@selector(setWriteSize:) name:@"kNotificationWriteSize" object:Nil];
 	// Regiest a notification to broadcast all done.
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(allDone:) name:@"kNotificationAllDone" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] addObserver:self selector:@selector(allDone:) name:@"kNotificationAllDone" object:nil];
+	// Regiest a notification to set log.
+	[[NSDistributedNotificationCenter defaultCenter] addObserver:self selector:@selector(setLog:) name:@"kNotificationAddLog" object:nil];
 	// Set progress bar
 	[m_singleProgress setUsesThreadedAnimation:YES];
 	[m_singleProgress startAnimation:nil];
@@ -116,7 +123,6 @@
 //											 selector:@selector(optimizationFile:)
 //											   object:filePath];
 //		[m_myThread start];
-		
 		[NSThread detachNewThreadSelector:@selector(optimizationFile:) toTarget:self withObject:filePath];
 	}
 }
@@ -127,23 +133,16 @@
 - (void)optimizationFile:(NSString*)filePath
 {
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-#ifdef DEBUG
-	NSLog(@"optimizationFile::%@",filePath);
-#endif
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:[NSString stringWithFormat:@"Start analyze ROM:\n%@", filePath]];
 	FILE* fp = fopen([filePath UTF8String], "rb");
     if (!fp) {
-#ifdef DEBUG
-		NSLog(@"Open ROM:%@ failed!", filePath);
-#endif
+		[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"Open ROM failed!"];
         return;
     }
-#ifdef DEBUG
-	NSLog(@"Start analyze rom~");
-#endif
 	// Get file size，move cursor to tail and get tail cursor to head cursor size.
 	fseek(fp, 0L, SEEK_END);
 	long fileSize = ftell(fp);
-	[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationSetFileSize" object:[NSNumber numberWithLongLong:fileSize]];
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationSetFileSize" object:[NSString stringWithFormat:@"%ld", fileSize]];
 	// 切块分析(block size 10M)
 	long long dataLength = 0;
 	int readCount = 0;
@@ -180,7 +179,7 @@
 				++dataLength;
 				// post notification to main thread
 				if (dataLength % 100000 == 0) {
-					[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationAnalyzeSize" object:[NSNumber numberWithLongLong:dataLength]];
+					[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAnalyzeSize" object:[NSString stringWithFormat:@"%lld", dataLength]];
 				}
 			}
 			break;
@@ -190,16 +189,22 @@
 		}
 		dataLength += destinyBlockSize;
 		// post notification to main thread
-		[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationAnalyzeSize" object:[NSNumber numberWithLongLong:dataLength]];
+		[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAnalyzeSize" object:[NSString stringWithFormat:@"%lld", dataLength]];
+	}
+	// If dataLength less than 1 then not necessary to optimize.
+	if (dataLength < 1) {
+		[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"ROM is not necessary to optimize!"];
+		fclose(fp);
+		[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAllDone" object:nil];
+		[pool release];
+		return;
 	}
 	// Computing finally file size.
 	dataLength = fileSize - dataLength;
-	[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationSetFileSize" object:[NSNumber numberWithLongLong:dataLength]];
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationSetFileSize" object:[NSString stringWithFormat:@"%lld", dataLength]];
 	// Move file pointer to 0
 	rewind(fp);
-#ifdef DEBUG
-	NSLog(@"Analyze success, start write to new file！");
-#endif
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"Analyze success, start write to new file!"];
 	// writing to temp file
 	NSString* newFilePath = [NSString stringWithFormat:@"%@.temp", filePath];
 	FILE* newFp = fopen([newFilePath UTF8String], "wb");
@@ -216,43 +221,47 @@
 		fputc(ch, newFp);
 		++newDataLength;
 		if (newDataLength % 100000 == 0) {
-			[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationWriteSize" object:[NSNumber numberWithLongLong:newDataLength]];
+			[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationWriteSize" object:[NSString stringWithFormat:@"%lld", newDataLength]];
 		}
 	}
 	fclose(newFp);
 	fclose(fp);
 	// Remove and rename operations must be after close the file pointer.
 	int removeStatus = remove([filePath UTF8String]);
-#ifdef DEBUG
 	if (removeStatus != 0) {
-		NSLog(@"Remove old rom failed！");
-	} else {
+		[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"Remove old rom failed！"];
+	}
+#ifdef DEBUG
+	else {
 		NSLog(@"Remove old rom success!");
 	}
 #endif
 	int renameStatus = rename([newFilePath UTF8String], [filePath UTF8String]);
-#ifdef DEBUG
 	if (renameStatus != 0) {
-		NSLog(@"Rename new rom failed!");
-	} else {
+		[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"Rename new rom failed!"];
+	}
+#ifdef DEBUG
+	else {
 		NSLog(@"Rename new rom success!");
 	}
-	NSLog(@"Write success, all done!");
 #endif
-	[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationAllDone" object:nil];
+	
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"Write success!"];
+
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"kNotificationAllDone" object:nil];
 	[pool release];
 }
 
 - (void)setFileSize:(NSNotification*)notification
 {
-	NSNumber* intSize = (NSNumber*)[notification object];
-	m_fileSize = [intSize longLongValue];
+	NSString* sizeString = (NSString*)[notification object];
+	m_fileSize = [sizeString longLongValue];
 }
 
 - (void)analyzeSize:(NSNotification*)notification
 {
-	NSNumber* intSize = (NSNumber*)[notification object];
-	long long newSize = [intSize longLongValue];
+	NSString* sizeString = (NSString*)[notification object];
+	long long newSize = [sizeString longLongValue];
 //	NSLog(@"value:%lld", newSize);
 	[m_singleProgress setMaxValue:m_fileSize];
 	[m_singleProgress setDoubleValue:m_fileSize - newSize];
@@ -262,8 +271,8 @@
 
 - (void)setWriteSize:(NSNotification*)notification
 {
-	NSNumber* intSize = (NSNumber*)[notification object];
-	long long newSize = [intSize longLongValue];
+	NSString* sizeString = (NSString*)[notification object];
+	long long newSize = [sizeString longLongValue];
 	[m_singleProgress setMaxValue:m_fileSize];
 	[m_singleProgress setDoubleValue:newSize];
 	
@@ -281,7 +290,8 @@
 	if ([self.fileList count] > 0) {
 		[self analyzeFile];
 	} else {
-		[m_singleBarText setStringValue:@"All Done!!!"];
+		[m_singleBarText setStringValue:@"All done!!!"];
+		[[NSNotificationCenter defaultCenter] postNotificationName:@"kNotificationAddLog" object:@"All done!"];
 		[m_singleFileText setStringValue:@""];
 		// show alert when all Done
 		NSAlert *alert = [NSAlert alertWithMessageText:@"Success" defaultButton:@"O K" alternateButton:nil otherButton:nil
@@ -294,15 +304,46 @@
 	}
 }
 
+- (void)setLog:(NSNotification*)notification
+{
+	NSString* str = (NSString*)[notification object];
+	[self addLogString:str];
+}
+
+#pragma mark - log operation function
+
+- (void)addLogString:(NSString*)str
+{
+	if (m_logBox) {
+		NSString* oldStr = [m_logBox string];
+		NSString* newStr = NULL;
+		if ([oldStr isEqualToString:@""]) {
+			newStr = str;
+		} else {
+			newStr = [NSString stringWithFormat:@"%@\n%@", oldStr, str];
+		}
+		
+		[m_logBox setString:newStr];
+	}
+}
+
+- (void)cleanLog
+{
+	if (m_logBox) {
+		[m_logBox setString:@""];
+	}
+}
+
 #pragma mark -
 
 - (void)dealloc
 {
 	// Remove all notification
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationSetFileSize" object:nil];
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAnalyzeSize" object:nil];
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationWriteSize" object:nil];
-	[[NSNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAllDone" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationSetFileSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAnalyzeSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationWriteSize" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAllDone" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self name:@"kNotificationAddLog" object:nil];
 	// release operation
 	self.fileList = nil;
 	[super dealloc];
